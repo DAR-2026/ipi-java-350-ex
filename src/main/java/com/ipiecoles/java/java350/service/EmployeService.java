@@ -32,40 +32,48 @@ public class EmployeService {
      */
     public void embaucheEmploye(String nom, String prenom, Poste poste, NiveauEtude niveauEtude, Double tempsPartiel) throws EmployeException, EntityExistsException {
 
-        //Récupération du type d'employé à partir du poste
-        String typeEmploye = poste.name().substring(0,1);
+    // 1. Génération du matricule (Extrait dans une fonction)
+    String matricule = genererNouveauMatricule(poste);
 
-        //Récupération du dernier matricule...
-        String lastMatricule = employeRepository.findLastMatricule();
-        if(lastMatricule == null){
-            lastMatricule = Entreprise.MATRICULE_INITIAL;
-        }
-        //... et incrémentation
-        Integer numeroMatricule = Integer.parseInt(lastMatricule) + 1;
-        if(numeroMatricule >= 100000){
-            throw new EmployeException("Limite des 100000 matricules atteinte !");
-        }
-        //On complète le numéro avec des 0 à gauche
-        String matricule = "00000" + numeroMatricule;
-        matricule = typeEmploye + matricule.substring(matricule.length() - 5);
-
-        //On vérifie l'existence d'un employé avec ce matricule
-        if(employeRepository.findByMatricule(matricule) != null){
-            throw new EntityExistsException("L'employé de matricule " + matricule + " existe déjà en BDD");
-        }
-
-        //Calcul du salaire
-        Double salaire = Entreprise.COEFF_SALAIRE_ETUDES.get(niveauEtude) * Entreprise.SALAIRE_BASE;
-        if(tempsPartiel != null){
-            salaire = salaire * tempsPartiel;
-        }
-
-        //Création et sauvegarde en BDD de l'employé.
-        Employe employe = new Employe(nom, prenom, matricule, LocalDate.now(), salaire, Entreprise.PERFORMANCE_BASE, tempsPartiel);
-
-        employeRepository.save(employe);
-
+    // 2. Vérification d'existence (Reste ici car c'est une validation métier)
+    if(employeRepository.findByMatricule(matricule) != null){
+        throw new EntityExistsException("L'employé de matricule " + matricule + " existe déjà en BDD");
     }
+
+    // 3. Calcul du salaire (Extrait dans une fonction)
+    Double salaire = calculerSalaireEmbauche(niveauEtude, tempsPartiel);
+
+    // 4. Création et sauvegarde
+    Employe employe = new Employe(nom, prenom, matricule, LocalDate.now(), salaire, Entreprise.PERFORMANCE_BASE, tempsPartiel);
+    employeRepository.save(employe);
+}
+
+// --- PETITES FONCTIONS D'AIDE (Pour réduire la complexité) ---
+
+private String genererNouveauMatricule(Poste poste) throws EmployeException {
+    String typeEmploye = poste.name().substring(0,1);
+    String lastMatricule = employeRepository.findLastMatricule();
+    
+    if(lastMatricule == null){
+        lastMatricule = Entreprise.MATRICULE_INITIAL;
+    }
+
+    Integer numeroMatricule = Integer.parseInt(lastMatricule) + 1;
+    if(numeroMatricule >= 100000){
+        throw new EmployeException("Limite des 100000 matricules atteinte !");
+    }
+
+    // Utilisation de String.format pour simplifier la logique des "00000"
+    return typeEmploye + String.format("%05d", numeroMatricule);
+}
+
+private Double calculerSalaireEmbauche(NiveauEtude niveauEtude, Double tempsPartiel) {
+    Double salaire = Entreprise.COEFF_SALAIRE_ETUDES.get(niveauEtude) * Entreprise.SALAIRE_BASE;
+    if(tempsPartiel != null){
+        salaire = salaire * tempsPartiel;
+    }
+    return salaire;
+}
 
 
     /**
